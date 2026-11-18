@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="GreetingApi" context="/greeting">
+    <!-- Resource configuration for GET requests -->
+    <resource methods="GET" uri-template="/hello">
+        <inSequence>
+            <!-- Set the payload content-type header to application/json -->
+            <header name="Content-Type" value="application/json" scope="transport"/>
+            <!-- Construct the JSON response payload -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "message": "Hello from WSO2 Micro Integrator!",
+                    "status": "success"
+                    }
+                </format>
+                <args/>
+            </payloadFactory>
+            <!-- Send the response back to the client -->
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </resource>
+</api>

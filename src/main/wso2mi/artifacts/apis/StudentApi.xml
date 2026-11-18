@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="StudentApi" context="/students">
+
+    <!-- ================================================================
+         GET /students/{id}
+         Teaches: path params, variable mediator, switch mediator,
+                   throwError + faultSequence for custom error responses
+         ================================================================ -->
+    <resource methods="GET" uri-template="/{id}">
+        <inSequence>
+            <!-- Capture the path parameter into a variable -->
+            <variable name="studentId" type="STRING" expression="${params.pathParams.id}"/>
+
+            <!-- A tiny in-memory "database" simulated with switch -->
+            <switch source="${vars.studentId}">
+                <case regex="1">
+                    <variable name="studentName" type="STRING" value="Alice"/>
+                    <variable name="studentGrade" type="STRING" value="A"/>
+                </case>
+                <case regex="2">
+                    <variable name="studentName" type="STRING" value="Bob"/>
+                    <variable name="studentGrade" type="STRING" value="B"/>
+                </case>
+                <default>
+                    <!-- Unknown id -> raise a custom error, handled below in faultSequence -->
+                    <throwError type="STUDENT_NOT_FOUND" errorMessage="No student found with id ${vars.studentId}"/>
+                </default>
+            </switch>
+
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "id": "${vars.studentId}",
+                    "name": "${vars.studentName}",
+                    "grade": "${vars.studentGrade}"
+                    }
+                </format>
+            </payloadFactory>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence>
+            <!-- Reads the error raised by throwError and builds a clean JSON error response -->
+            <property name="HTTP_SC" value="404" scope="axis2" type="STRING"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "error": "${properties.synapse.ERROR_MESSAGE}",
+                    "code": "${properties.synapse.ERROR_CODE}"
+                    }
+                </format>
+            </payloadFactory>
+            <respond/>
+        </faultSequence>
+    </resource>
+
+    <!-- ================================================================
+         POST /students
+         Teaches: JSON body validation with filter + exists(), ternary
+                   expressions, enrich-like derived fields, 400 handling
+         ================================================================ -->
+    <resource methods="POST" uri-template="/">
+        <inSequence>
+            <!-- Guard clause: both name and score are required -->
+            <filter xpath="${not(exists(payload.name)) or not(exists(payload.score))}">
+                <then>
+                    <throwError type="VALIDATION_ERROR" errorMessage="Both 'name' and 'score' fields are required"/>
+                </then>
+                <else/>
+            </filter>
+
+            <!-- Derive a pass/fail status from the score using a ternary expression -->
+            <variable name="resultStatus" type="STRING"
+                      expression="${payload.score &gt;= 50 ? 'PASS' : 'FAIL'}"/>
+
+            <!-- Derive a letter grade using nested ternary -->
+            <variable name="letterGrade" type="STRING"
+                      expression="${payload.score &gt;= 90 ? 'A' : (payload.score &gt;= 75 ? 'B' : (payload.score &gt;= 50 ? 'C' : 'F'))}"/>
+
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "name": "${payload.name}",
+                    "score": ${payload.score},
+                    "status": "${vars.resultStatus}",
+                    "grade": "${vars.letterGrade}"
+                    }
+                </format>
+            </payloadFactory>
+
+            <property name="HTTP_SC" value="201" scope="axis2" type="STRING"/>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence>
+            <property name="HTTP_SC" value="400" scope="axis2" type="STRING"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                    "error": "${properties.synapse.ERROR_MESSAGE}",
+                    "code": "${properties.synapse.ERROR_CODE}"
+                    }
+                </format>
+            </payloadFactory>
+            <respond/>
+        </faultSequence>
+    </resource>
+
+</api>
